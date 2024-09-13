@@ -1,0 +1,7 @@
+FROM alpine:latest
+
+RUN apk add --no-cache python3 git
+RUN git clone --depth=1 https://github.com/sqlmapproject/sqlmap.git
+WORKDIR /sqlmap
+CMD ["-h"]
+ENTRYPOINT ["python3", "sqlmap.py"]

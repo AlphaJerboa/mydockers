@@ -1,0 +1,6 @@
+FROM kalilinux/kali-last-release
+RUN apt update && apt install -y --no-install-recommends impacket-scripts
+RUN mkdir /data && useradd -Md /data smbserver
+USER smbserver
+WORKDIR /data
+CMD ["impacket-smbserver","share",".","-smb2support"]

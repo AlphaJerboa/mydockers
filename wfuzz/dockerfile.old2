@@ -1,0 +1,13 @@
+FROM python:latest
+
+RUN mkdir /app && useradd -Md /app app && chown app: /app
+
+USER app
+WORKDIR /app
+ENV PYTHONPATH=/app
+
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir install wfuzz -t .
+
+CMD ["-h"]
+ENTRYPOINT ["/usr/local/bin/python3","-W","ignore","/app/wfuzz/wfuzz.py"]
