@@ -1,0 +1,35 @@
+version: "3"
+
+services:
+
+    nginx:
+        container_name: nginx-sso
+        build: .
+        #image: ghcr.io/flavienbwk/nginx-keycloak/nginx-sso:20220304
+        # Following command auto-replaces env variables in NGINX configuration
+        command: /bin/bash -c "envsubst < /etc/nginx/conf.d/nginx.conf.template > /etc/nginx/conf.d/default.conf && /usr/local/openresty/nginx/sbin/nginx -g 'daemon off;'" 
+        ports:
+            - 443:3002
+        volumes: 
+            - ./logs:/var/log/nginx
+            - ./nginx.conf.template:/etc/nginx/conf.d/nginx.conf.template
+            - ./nginx-selfsigned.crt:/etc/nginx/conf.d/nginx.crt
+            - ./nginx-selfsigned.key:/etc/nginx/conf.d/nginx.key
+        networks:
+            - nginx-sso
+        environment:
+            KEYCLOAK_INTERNAL_ENDPOINT: ${KEYCLOAK_INTERNAL_ENDPOINT}
+            KEYCLOAK_EXTERNAL_ENDPOINT: ${KEYCLOAK_EXTERNAL_ENDPOINT}
+            KEYCLOAK_LOGOUT_REDIRECT_URI: ${KEYCLOAK_LOGOUT_REDIRECT_URI}
+            KEYCLOAK_REALM: ${KEYCLOAK_REALM}
+            KEYCLOAK_CLIENT: ${KEYCLOAK_CLIENT}
+            KEYCLOAK_ROLE: ${KEYCLOAK_ROLE}
+            KEYCLOAK_SECRET: ${KEYCLOAK_SECRET}
+            NGINX_UPSTREAM_URL: ${NGINX_UPSTREAM_URL}
+networks:
+    nginx-sso:
+      driver: bridge
+      ipam:
+        driver: default
+        config:
+          - subnet: "172.16.0.200/24"
