@@ -1,0 +1,35 @@
+# Use Alpine Linux for minimal footprint
+FROM alpine:3.19
+
+# Install OpenSSH server
+RUN apk add --no-cache openssh-server && \
+    addgroup -S -g 1000 sshfsgroup && \
+    adduser -S -u 1000 -G sshfsgroup -s /sbin/nologin sshfsuser && \
+    passwd -u sshfsuser && \
+    ssh-keygen -A
+
+# Configure SSH
+COPY sshd_config /etc/ssh/sshd_config
+RUN mkdir -p /data && \
+    chmod 750 /data && \
+    mkdir -p /home/sshfsuser/.ssh && \
+    chown -R sshfsuser:sshfsgroup /home/sshfsuser/.ssh && \
+    chmod 700 /home/sshfsuser/.ssh
+
+# Copy and setup authorized_keys
+COPY authorized_keys /home/sshfsuser/.ssh/authorized_keys
+RUN chown sshfsuser:sshfsgroup /home/sshfsuser/.ssh/authorized_keys && \
+    chmod 600 /home/sshfsuser/.ssh/authorized_keys
+
+# Entrypoint script
+COPY entrypoint.sh /
+RUN chmod 700 /entrypoint.sh
+
+# Expose SSH port (mapped to host)
+EXPOSE 2222
+
+# Persistent storage
+VOLUME /data
+
+ENTRYPOINT ["/entrypoint.sh"]
+

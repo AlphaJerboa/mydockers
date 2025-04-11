@@ -1,0 +1,18 @@
+Port 2222
+LogLevel DEBUG3
+PermitRootLogin no
+AllowUsers sshfsuser
+Subsystem sftp internal-sftp
+PidFile none
+PasswordAuthentication no
+PubKeyAuthentication yes
+AuthorizedKeysFile /home/sshfsuser/.ssh/authorized_keys
+
+Match User sshfsuser
+    ChrootDirectory /data
+    ForceCommand internal-sftp
+    AllowTcpForwarding no
+    X11Forwarding no
+    PermitTunnel no
+    PermitTTY no
+

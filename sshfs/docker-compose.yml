@@ -1,0 +1,28 @@
+---
+services:
+  sshfs-server:
+    build: .
+    container_name: sshfs-server
+    restart: unless-stopped
+    ports:
+      - "2222:2222"
+    volumes:
+      - sshfs_data:/data
+      - ./sshd_config:/etc/ssh/sshd_config:ro
+    security_opt:
+      - no-new-privileges
+    read_only: true
+    healthcheck:
+      test: ["CMD-SHELL", "ss -tnl | grep -q :2222"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  sshfs_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data
+
