@@ -1,0 +1,10 @@
+services:
+  webhook_receiver:
+    image: webhook_receiver:latest
+    build: .
+    environment:
+      - WEBHOOK_PORT=${WEBHOOK_PORT:-8000}
+    ports:
+      - "${WEBHOOK_PORT:-8000}:${WEBHOOK_PORT:-8000}"
+    volumes:
+      - ./:/tmp/current
