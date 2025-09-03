@@ -1,0 +1,25 @@
+# Adapted from https://github.com/bytebot-ai/bytebot
+
+name: desktop
+
+services:
+  desktop:
+    # Build from source
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    shm_size: "2g"
+    container_name: desktop
+    restart: unless-stopped
+    hostname: computer
+    privileged: true
+    ports:
+      - "127.0.0.1:5900:5900" # noVNC
+    environment:
+      - DISPLAY=:0
+    networks:
+      - desktop-network
+
+networks:
+  desktop-network:
+    driver: bridge
