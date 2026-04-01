@@ -1,0 +1,70 @@
+# ------------------------------------------------------------
+# Troubleshooting container — secrets & permissions diagnostic
+#
+# Purpose:
+#   This container is used to troubleshoot Docker secrets
+#   access and file permission issues. It runs as a specific
+#   user (UID 1001) to simulate the same security context as
+#   the target container, and displays the content of the
+#   mounted secrets to verify they are correctly accessible.
+#
+# Usage:
+#   docker compose up -d && docker compose attach show-certs
+#
+# Notes:
+#   - The container drops into an interactive shell after
+#     displaying the secrets, allowing further investigation.
+#   - The `|| sh` fallback ensures a shell is opened even if
+#     the cat commands fail (e.g. permission denied), so you
+#     can diagnose the issue from inside the container.
+#   - Change user UID to match the one used in your target
+#     container.
+#   - Remove or disable this service once troubleshooting
+#     is complete — never leave it running in production.
+#
+# User remapping (userns-remap):
+#   If Docker user remapping is enabled on the host, the
+#   container UID 1001 is remapped to a higher UID on the
+#   host (e.g. 101001 if the remapping offset is 100000).
+#   In that case, the secret source files on the host must
+#   be readable by that remapped UID:
+#
+#     sudo chown 101001 /etc/ssl/localcerts/server.crt
+#     sudo chown 101001 /etc/ssl/localcerts/server.key
+#
+#   Or alternatively, set the file permissions to allow
+#   group read (container GID=1000, host GID=101000)
+#   if the security policy permits it:
+#
+#     sudo chown :101000 /etc/ssl/localcerts/server.crt
+#     sudo chown :101000 /etc/ssl/localcerts/server.key
+#     sudo chmod g+r /etc/ssl/localcerts/server.crt
+#     sudo chmod g+r /etc/ssl/localcerts/server.key
+#
+#   The remapping offset can be verified with:
+#     docker info | grep -A2 "userns-remap"
+#     cat /etc/subuid
+# ------------------------------------------------------------
+
+services:
+  show-certs:
+    image: busybox
+    container_name: show-certs
+    restart: no
+    user: "1001" # Should match the UID used in your target container
+    command: >
+      sh -c "echo '=== Certificate ===' &&
+             cat /run/secrets/cert_file &&
+             echo '=== Key ===' &&
+             cat /run/secrets/key_file || sh"
+    stdin_open: true
+    tty: true
+    secrets:
+      - cert_file
+      - key_file
+
+secrets:
+  cert_file:
+    file: /etc/ssl/localcerts/server.crt
+  key_file:
+    file: /etc/ssl/localcerts/server.key
