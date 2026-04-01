@@ -39,7 +39,7 @@ server {
         local opts = {
             redirect_uri = "/redirect_uri",
             accept_none_alg = false,
-	    ssl_verify = false,
+	        ssl_verify = true,
             renew_access_token_on_expiry = true,
             discovery = { -- Overwriting auto-discovery [parameters](http://localhost:3333/auth/realms/master/.well-known/openid-configuration)
                 issuer = "${KEYCLOAK_EXTERNAL_ENDPOINT}/realms/${KEYCLOAK_REALM}",
