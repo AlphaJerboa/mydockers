@@ -1,0 +1,36 @@
+# Git
+.git
+.gitignore
+
+# Docker
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# Secrets and certs
+secrets/
+certs/
+*.pem
+*.key
+*.crt
+
+# Environment files
+.env
+.env.*
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.venv
+venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Documentation
+*.md
+LICENSE

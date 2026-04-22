@@ -1,0 +1,153 @@
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: nginx
+    restart: unless-stopped
+    depends_on:
+      webapp:
+        condition: service_healthy
+      oauth2-proxy:
+        condition: service_healthy
+    ports:
+      - "443:443"
+    volumes:
+      - ./proxy.conf:/etc/nginx/conf.d/default.conf:ro
+    secrets:
+      - cert_file
+      - key_file
+    environment:
+      SERVER_NAME: ${SERVER_NAME:-_}
+      TZ: Europe/Paris
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -T 5 -O - http://localhost/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - proxy-webapp
+      - proxies
+      - public
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx:size=10M
+      - /var/run:size=1M
+
+  # OAuth2 Proxy for authentication
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.5.1
+    container_name: oauth2-proxy
+    networks:
+      - proxies
+      - public
+    secrets:
+      - cookie_secret
+      - client_secret
+    environment:
+      - OAUTH2_PROXY_HTTP_ADDRESS=http://0.0.0.0:4180
+      # OAuth Provider Configuration
+      - OAUTH2_PROXY_PROVIDER=keycloak-oidc
+      - OAUTH2_PROXY_OIDC_ISSUER_URL=https://keycloak.company.com/realms/company-private
+      - OAUTH2_PROXY_REDIRECT_URL=https://webapp.company.com/oauth2/callback
+      # Client Configuration (loaded from Docker secrets)
+      - OAUTH2_PROXY_CLIENT_ID=webapp_app
+      - OAUTH2_PROXY_CLIENT_SECRET_FILE=/run/secrets/client_secret
+      - OAUTH2_PROXY_EMAIL_DOMAINS=company.com
+      - OAUTH2_PROXY_CODE_CHALLENGE_METHOD=S256
+      # Cookies settings (loaded from Docker secret)
+      - OAUTH2_PROXY_COOKIE_SECRET_FILE=/run/secrets/cookie_secret
+      # Upstream (your webapp)
+      - OAUTH2_PROXY_UPSTREAMS=https://webapp.company.com
+      - OAUTH2_PROXY_SKIP_PROVIDER_BUTTON=false
+      # Enable xauth-request (user and mail header forwarded)
+      - OAUTH2_PROXY_SET_XAUTHREQUEST=true
+    depends_on:
+      webapp:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-T", "5", "--spider", "http://localhost:4180/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+
+  webapp:
+    build:
+      context: .
+    image: webapp:latest
+    environment:
+      - PORT=8080
+    container_name: webapp
+    restart: unless-stopped
+    networks:
+      - proxy-webapp
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:size=10M
+
+networks:
+  # Network between proxy and frontend (no internet needed)
+  proxy-webapp:
+    driver: bridge
+    internal: true
+  proxies:
+    driver: bridge
+    internal: true
+  public:
+    driver: bridge
+
+secrets:
+  cert_file:
+    file: ./certs/webapp.company.com.crt
+  key_file:
+    file: ./certs/webapp.company.com.key
+  cookie_secret:
+    file: ./secrets/cookie_secret
+  client_secret:
+    file: ./secrets/client_secret
