@@ -12,6 +12,7 @@ A collection of Dockerized tools and services for development, security testing,
 | [sshfs](./sshfs/) | Hardened SFTP server with chroot and key-only auth | alpine:3.19 |
 | [webhook_receiver](./webhook_receiver/) | Minimal HTTP server for receiving webhook payloads | python:3.7-alpine |
 | [desktop](./desktop/) | Virtual XFCE4 desktop accessible via noVNC | ubuntu:22.04 |
+| [semaphore](./semaphore/) | Ansible Semaphore and HashiCorp Vault integration | semaphoreui/semaphore:v2.17.26 |
 
 ### Security Tools
 
