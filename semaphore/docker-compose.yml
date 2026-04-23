@@ -1,0 +1,158 @@
+services:
+
+  semaphore:
+    ports:
+      - 443:3000
+    image: semaphoreui/semaphore:v2.17.26
+    container_name: semaphore
+    restart: unless-stopped
+    env_file: ".env"
+    environment:
+      TZ: "Europe/Paris"
+      SEMAPHORE_DB_DIALECT: mysql
+      SEMAPHORE_DB_HOST: mysql
+      SEMAPHORE_DB_NAME: semaphore
+      SEMAPHORE_DB_USER: semaphore
+      SEMAPHORE_ADMIN: admin
+      SEMAPHORE_ADMIN_NAME: Admin
+      SEMAPHORE_ADMIN_EMAIL: admin@company.com
+      SEMAPHORE_USE_REMOTE_RUNNER: "True"
+      SEMAPHORE_WEB_ROOT: "https://semaphore.company.com"
+      SEMAPHORE_SCHEDULE_TIMEZONE: "Europe/Paris"
+      SEMAPHORE_NON_ADMIN_CAN_CREATE_PROJECT: "True"
+      SEMAPHORE_EVENT_LOG_FORMAT: "json"
+      SEMAPHORE_EVENT_LOG_ENABLED: "True"
+      SEMAPHORE_TOTP_ENABLED: "True"
+      SEMAPHORE_TLS_ENABLED: "True"
+      SEMAPHORE_TLS_CERT_FILE: "/run/secrets/cert_file"
+      SEMAPHORE_TLS_KEY_FILE: "/run/secrets/key_file"
+      SEMAPHORE_EMAIL_ALERT: "True"
+      SEMAPHORE_EMAIL_SENDER: "noreply@company.com"
+      SEMAPHORE_EMAIL_HOST: "smarthost.company.com"
+      SEMAPHORE_EMAIL_PORT: "587"
+      SEMAPHORE_EMAIL_SECURE: "True"
+      SEMAPHORE_EMAIL_TLS: "True"
+      SEMAPHORE_LOG_LEVEL: "info"
+      SEMAPHORE_SECRETS_PATH: "/vault" # vault token file must be inside this secrets directory
+    secrets:
+      - cert_file
+      - key_file
+    volumes:
+      - semaphore_data:/var/lib/semaphore
+      - semaphore_config:/etc/semaphore
+      - vault_token:/vault/token:ro  # shared volume: vault-agent writes, semaphore reads
+      - /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro # Optional: trust internal pki 
+    tmpfs:
+      - /tmp/semaphore
+    networks:
+      semaphore_mysql:
+      semaphore_runner:
+          aliases:
+            - semaphore.company.com
+            - automation.company.com
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "https://localhost:3000/api/ping", "--no-check-certificate"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      vault-agent:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+
+  mysql:
+    image: mysql:8
+    container_name: mysql
+    restart: unless-stopped
+    env_file: ".env"
+    environment:
+      MYSQL_USER: semaphore
+      MYSQL_DATABASE: semaphore
+      MYSQL_RANDOM_ROOT_PASSWORD: yes
+    volumes:
+      - mysql:/var/lib/mysql
+    networks:
+      - semaphore_mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "semaphore", "--password=$$MYSQL_PASSWORD"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  runner:
+    image: semaphoreui/runner:v2.17.26  # match the semaphore version
+    container_name: runner
+    env_file: ".env"
+    environment:
+      SEMAPHORE_WEB_ROOT: "https://semaphore.company.com"  # internal network via alias
+      SEMAPHORE_RUNNER_PRIVATE_KEY_FILE: /var/lib/semaphore/runner.key
+      TZ: "Europe/Paris"
+      SSL_CERT_DIR: "/usr/local/share/ca-certificates"
+      SSL_CERT_FILE: "/usr/local/share/ca-certificates/ca.company.com.crt"
+    volumes:
+      - runner_data:/var/lib/semaphore
+      - /usr/local/share/ca-certificates:/usr/local/share/ca-certificates:ro  # For certificate trust
+    networks:
+      - semaphore_runner
+    depends_on:
+      semaphore:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "runner"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  vault-agent:
+    image: hashicorp/vault:1.21.4
+    container_name: vault-agent
+    restart: unless-stopped
+    entrypoint: vault
+    command: agent -config=/vault/config/agent.hcl
+    environment:
+      VAULT_ADDR: "https://vault.company.com"
+      VAULT_CACERT: "/usr/local/share/ca-certificates/ca.company.com.crt"
+    secrets:
+      - vault_role_id     # mounted at /run/secrets/vault_role_id
+      - vault_secret_id   # mounted at /run/secrets/vault_secret_id
+    volumes:
+      - ./vault-agent.hcl:/vault/config/agent.hcl:ro
+      - vault_token:/vault/token    # shared: token written here
+      - /usr/local/share/ca-certificates:/usr/local/share/ca-certificates:ro
+    healthcheck:
+      test: ["CMD", "vault", "status", "-address=https://vault.company.com", "-ca-cert=/usr/local/share/ca-certificates/ca.company.com.crt"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - semaphore_runner  # needs to reach vault.company.com
+
+
+volumes:
+    semaphore_data:
+    mysql:
+    semaphore_config:
+    runner_data:
+    vault_token:  # shared between vault-agent (writer) and semaphore (reader)
+
+secrets:
+  cert_file:
+    file: /etc/ssl/localcerts/semaphore.company.crt
+  key_file:
+    file: /etc/ssl/localcerts/semaphore.company.key
+  vault_role_id:
+    file: ./secrets/role_id      # plain text file containing just the role_id UUID
+  vault_secret_id:
+    file: ./secrets/secret_id    # plain text file containing just the secret_id UUID
+
+
+
+networks:
+  semaphore_mysql:
+  semaphore_runner:
