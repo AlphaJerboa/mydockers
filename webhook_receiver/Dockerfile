@@ -1,4 +1,4 @@
-FROM python:3.7-alpine
+FROM python:alpine
 
 ENV PYTHONUNBUFFERED=1
 ENV WEBHOOK_PORT=8000
